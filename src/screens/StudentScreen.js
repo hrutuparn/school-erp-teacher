@@ -14,22 +14,24 @@ import {
 import { supabase } from '../services/supabase';
 import colors from '../components/colors';
 
-export default function AddStudentScreen({ onBack }) {
+export default function StudentScreen({ onBack, classFilter }) {
   const [students, setStudents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   
   // Form fields
-const [firstName, setFirstName] = useState('');
-const [lastName, setLastName] = useState('');
-const [rollNumber, setRollNumber] = useState('');
-const [class_, setClass_] = useState('10A');
-const [showClassPicker, setShowClassPicker] = useState(false);
-const [standard, setStandard] = useState('10th');
-const [division, setDivision] = useState('A');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [rollNumber, setRollNumber] = useState('');
+  const [class_, setClass_] = useState(classFilter || '10A'); // Use classFilter if present
+  const [showClassPicker, setShowClassPicker] = useState(false);
+  const [standard, setStandard] = useState('10th');
+  const [division, setDivision] = useState('A');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
-  const [generatedId, setGeneratedId] = useState('');
+  const [udiseNumber, setUdiseNumber] = useState('');
 
   // Load students on screen open
   useEffect(() => {
@@ -38,11 +40,11 @@ const [division, setDivision] = useState('A');
 
   async function fetchStudents() {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      let query = supabase.from('students').select('*');
+      if (classFilter) {
+        query = query.eq('class', classFilter);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
@@ -50,82 +52,118 @@ const [division, setDivision] = useState('A');
     }
   }
 
-  // YOUR GENIUS UNIQUE ID GENERATOR!
-  function generateUniqueId(first, last) {
-    // Take first 3 letters of first name (or less if name is shorter)
-    const firstPart = first.substring(0, 3).toUpperCase();
-    
-    // Take first 2 letters of last name (or less if name is shorter)
-    const lastPart = last.substring(0, 2).toUpperCase();
-    
-    // Generate 4 random alphanumeric characters
-    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
-    
-    // Combine: e.g., "JOHDOE7X9F"
-    return firstPart + lastPart + randomPart;
-  }
-
-  // Update generated ID when names change
-  useEffect(() => {
-    if (firstName && lastName) {
-      setGeneratedId(generateUniqueId(firstName, lastName));
-    } else {
-      setGeneratedId('');
+  // Open form to edit a student
+  const openEditForm = (student) => {
+    setEditingStudent(student);
+    setIsEditing(true);
+    setFirstName(student.first_name);
+    setLastName(student.last_name);
+    setRollNumber(student.roll_number);
+    setClass_(student.class);
+    setParentName(student.parent_name);
+    setParentPhone(student.parent_phone);
+    // Extract numeric part from unique_id (remove "ID:")
+    const udise = student.unique_id ? student.unique_id.replace('ID:', '') : '';
+    setUdiseNumber(udise);
+    // Set the class picker values based on class (e.g., "10A" -> standard "10th", division "A")
+    const match = student.class.match(/(\d+)([A-Z])/);
+    if (match) {
+      const stdNum = match[1];
+      setStandard(`${stdNum}th`);
+      setDivision(match[2]);
     }
-  }, [firstName, lastName]);
+    setShowForm(true);
+  };
 
-  async function addStudent() {
-    if (!firstName || !lastName || !rollNumber || !class_ || !parentName || !parentPhone) {
-      Alert.alert('Error', 'Please fill in all fields');
+  // Clear form after saving or cancel
+  const clearForm = () => {
+    setFirstName('');
+    setLastName('');
+    setRollNumber('');
+    setClass_(classFilter || '10A');
+    setParentName('');
+    setParentPhone('');
+    setUdiseNumber('');
+    setEditingStudent(null);
+    setIsEditing(false);
+  };
+
+  // Save student (insert or update)
+  async function saveStudent() {
+    if (!firstName || !lastName || !rollNumber || !class_ || !parentName || !parentPhone || !udiseNumber) {
+      Alert.alert('Error', 'Please fill in all fields, including UDISE Number');
       return;
     }
+    // If classFilter exists (teacher view), force the class to the teacher's class
+    const finalClass = classFilter ? classFilter : class_;
+    const fullUdiseId = `ID:${udiseNumber}`;
 
     setLoading(true);
     try {
-      // Check if student with same roll number exists in class
-      const { data: existing } = await supabase
-        .from('students')
-        .select('*')
-        .eq('class', class_)
-        .eq('roll_number', rollNumber);
-
-      if (existing && existing.length > 0) {
-        Alert.alert('Error', 'Roll number already exists in this class!');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('students')
-        .insert([
-          { 
+      if (isEditing && editingStudent) {
+        // UPDATE existing student – class cannot be changed if classFilter exists
+        const { error } = await supabase
+          .from('students')
+          .update({
             first_name: firstName,
             last_name: lastName,
-            unique_id: generatedId,
             roll_number: rollNumber,
-            class: class_,
+            class: finalClass,               // ← Use finalClass
+            parent_name: parentName,
+            parent_phone: parentPhone,
+            unique_id: fullUdiseId,
+          })
+          .eq('id', editingStudent.id);
+
+        if (error) throw error;
+        Alert.alert('Success', 'Student updated successfully!');
+      } else {
+        // INSERT new student – check duplicate roll number in the same class (finalClass)
+        const { data: existing } = await supabase
+          .from('students')
+          .select('id')
+          .eq('class', finalClass)
+          .eq('roll_number', rollNumber);
+
+        if (existing && existing.length > 0) {
+          Alert.alert('Error', 'Roll number already exists in this class!');
+          setLoading(false);
+          return;
+        }
+
+        // Check for duplicate UDISE ID
+        const { data: existingUdise } = await supabase
+          .from('students')
+          .select('id')
+          .eq('unique_id', fullUdiseId);
+
+        if (existingUdise && existingUdise.length > 0) {
+          Alert.alert('Error', 'This UDISE Number is already registered');
+          setLoading(false);
+          return;
+        }
+
+        const { error } = await supabase
+          .from('students')
+          .insert([{
+            first_name: firstName,
+            last_name: lastName,
+            unique_id: fullUdiseId,
+            roll_number: rollNumber,
+            class: finalClass,             // ← Use finalClass
             parent_name: parentName,
             parent_phone: parentPhone,
             created_at: new Date()
-          }
-        ])
-        .select();
+          }]);
 
-      if (error) throw error;
-      
-      Alert.alert('Success', `Student added!\nUnique ID: ${generatedId}`);
+        if (error) throw error;
+        Alert.alert('Success', 'Student added successfully!');
+      }
+
+      // Close form and refresh list
       setShowForm(false);
-      
-      // Clear form
-      setFirstName('');
-      setLastName('');
-      setRollNumber('');
-      setClass_('10A');
-      setParentName('');
-      setParentPhone('');
-      setGeneratedId('');
-      
-      fetchStudents(); // Refresh the list
+      clearForm();
+      fetchStudents();
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
@@ -142,7 +180,10 @@ const [division, setDivision] = useState('A');
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Manage Students</Text>
         <TouchableOpacity 
-          onPress={() => setShowForm(!showForm)} 
+          onPress={() => {
+            clearForm();
+            setShowForm(true);
+          }} 
           style={[styles.addButton, { backgroundColor: colors.teal }]}
         >
           <Text style={styles.addButtonText}>+</Text>
@@ -150,10 +191,12 @@ const [division, setDivision] = useState('A');
       </View>
 
       <ScrollView>
-        {/* Add Student Form */}
+        {/* Add/Edit Student Form */}
         {showForm && (
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Add New Student</Text>
+            <Text style={styles.formTitle}>
+              {isEditing ? 'Edit Student' : 'Add New Student'}
+            </Text>
             
             <View style={styles.row}>
               <View style={styles.halfWidth}>
@@ -178,15 +221,6 @@ const [division, setDivision] = useState('A');
               </View>
             </View>
 
-            {/* UNIQUE ID DISPLAY - YOUR BRILLIANT IDEA! */}
-            {generatedId ? (
-              <View style={styles.uniqueIdContainer}>
-                <Text style={styles.uniqueIdLabel}>UNIQUE ID:</Text>
-                <Text style={styles.uniqueIdValue}>{generatedId}</Text>
-                <Text style={styles.uniqueIdNote}>Student will use this to connect parents</Text>
-              </View>
-            ) : null}
-
             <View style={styles.row}>
               <View style={styles.halfWidth}>
                 <Text style={styles.label}>Roll Number *</Text>
@@ -199,16 +233,27 @@ const [division, setDivision] = useState('A');
                   placeholderTextColor={colors.gray}
                 />
               </View>
-              <View style={styles.halfWidth}>
-                <Text style={styles.label}>Class *</Text>
-<TouchableOpacity 
-  style={styles.classPickerButton}
-  onPress={() => setShowClassPicker(true)}
->
-  <Text style={styles.classPickerText}>{class_}</Text>
-  <Text style={styles.dropdownIcon}>▼</Text>
-</TouchableOpacity>
-              </View>
+
+              {/* Class field – different for teacher vs principal */}
+              {!classFilter ? (
+                <View style={styles.halfWidth}>
+                  <Text style={styles.label}>Class *</Text>
+                  <TouchableOpacity 
+                    style={styles.classPickerButton}
+                    onPress={() => setShowClassPicker(true)}
+                  >
+                    <Text style={styles.classPickerText}>{class_}</Text>
+                    <Text style={styles.dropdownIcon}>▼</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.halfWidth}>
+                  <Text style={styles.label}>Class</Text>
+                  <View style={[styles.classPickerButton, { backgroundColor: colors.lightGray, opacity: 0.7 }]}>
+                    <Text style={styles.classPickerText}>{classFilter}</Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             <Text style={styles.label}>Parent Name *</Text>
@@ -231,73 +276,98 @@ const [division, setDivision] = useState('A');
               placeholderTextColor={colors.gray}
             />
 
+            {/* UDISE Number Input */}
+            <Text style={styles.label}>SARAL UDISE Number *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., 2024271909001120002"
+              value={udiseNumber}
+              onChangeText={setUdiseNumber}
+              keyboardType="numeric"
+              maxLength={19}
+              placeholderTextColor={colors.gray}
+            />
+
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: colors.orange }]}
-              onPress={addStudent}
+              onPress={saveStudent}
               disabled={loading}
             >
-{/* Class Picker Modal */}
-<Modal visible={showClassPicker} transparent animationType="slide">
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>Select Class</Text>
-      
-      <Text style={styles.modalSubTitle}>Standard</Text>
-      <View style={styles.modalRow}>
-        {['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'].map((std) => (
-          <TouchableOpacity
-            key={std}
-            style={[
-              styles.modalChip,
-              standard === std && { backgroundColor: colors.teal }
-            ]}
-            onPress={() => setStandard(std)}
-          >
-            <Text style={[
-              styles.modalChipText,
-              standard === std && { color: colors.white }
-            ]}>{std}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.modalSubTitle}>Division</Text>
-      <View style={styles.modalRow}>
-        {['A','B','C','D','E'].map((div) => (
-          <TouchableOpacity
-            key={div}
-            style={[
-              styles.modalChip,
-              division === div && { backgroundColor: colors.teal }
-            ]}
-            onPress={() => setDivision(div)}
-          >
-            <Text style={[
-              styles.modalChipText,
-              division === div && { color: colors.white }
-            ]}>Div {div}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={styles.modalDoneButton}
-        onPress={() => {
-          const stdNumber = standard.replace('th', '').replace('rd', '').replace('nd', '').replace('st', '');
-          setClass_(stdNumber + division);
-          setShowClassPicker(false);
-        }}
-      >
-        <Text style={styles.modalDoneText}>Done</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
               <Text style={styles.saveButtonText}>
-                {loading ? 'Adding...' : 'Add Student'}
+                {loading ? 'Saving...' : (isEditing ? 'Update Student' : 'Add Student')}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cancelButton, { marginTop: 10 }]}
+              onPress={() => {
+                setShowForm(false);
+                clearForm();
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
+        )}
+
+        {/* Class Picker Modal – only shown when no classFilter (principal) */}
+        {!classFilter && (
+          <Modal visible={showClassPicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Class</Text>
+                
+                <Text style={styles.modalSubTitle}>Standard</Text>
+                <View style={styles.modalRow}>
+                  {['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'].map((std) => (
+                    <TouchableOpacity
+                      key={std}
+                      style={[
+                        styles.modalChip,
+                        standard === std && { backgroundColor: colors.teal }
+                      ]}
+                      onPress={() => setStandard(std)}
+                    >
+                      <Text style={[
+                        styles.modalChipText,
+                        standard === std && { color: colors.white }
+                      ]}>{std}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.modalSubTitle}>Division</Text>
+                <View style={styles.modalRow}>
+                  {['A','B','C','D','E'].map((div) => (
+                    <TouchableOpacity
+                      key={div}
+                      style={[
+                        styles.modalChip,
+                        division === div && { backgroundColor: colors.teal }
+                      ]}
+                      onPress={() => setDivision(div)}
+                    >
+                      <Text style={[
+                        styles.modalChipText,
+                        division === div && { color: colors.white }
+                      ]}>Div {div}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.modalDoneButton}
+                  onPress={() => {
+                    const stdNumber = standard.replace('th', '').replace('rd', '').replace('nd', '').replace('st', '');
+                    setClass_(stdNumber + division);
+                    setShowClassPicker(false);
+                  }}
+                >
+                  <Text style={styles.modalDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         )}
 
         {/* Students List */}
@@ -313,7 +383,9 @@ const [division, setDivision] = useState('A');
                 <Text style={styles.studentClass}>Class {student.class} | Roll: {student.roll_number}</Text>
               </View>
               <View style={[styles.uniqueIdBadge, { backgroundColor: colors.teal }]}>
-                <Text style={styles.uniqueIdBadgeText}>ID: {student.unique_id}</Text>
+                <Text style={styles.uniqueIdBadgeText}>
+                  ID: {student.unique_id ? student.unique_id.replace('ID:', '') : ''}
+                </Text>
               </View>
             </View>
             
@@ -321,6 +393,14 @@ const [division, setDivision] = useState('A');
               <Text style={styles.parentText}>👪 {student.parent_name}</Text>
               <Text style={styles.parentText}>📞 {student.parent_phone}</Text>
             </View>
+            
+            {/* Edit Button */}
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => openEditForm(student)}
+            >
+              <Text style={styles.editButtonText}>✏️ Edit</Text>
+            </TouchableOpacity>
           </View>
         ))}
         
@@ -418,32 +498,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
   },
-  uniqueIdContainer: {
-    backgroundColor: colors.teal + '20', // 20% opacity
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.teal,
-  },
-  uniqueIdLabel: {
-    fontSize: 12,
-    color: colors.text,
-    marginBottom: 5,
-  },
-  uniqueIdValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.teal,
-    letterSpacing: 2,
-    marginBottom: 5,
-  },
-  uniqueIdNote: {
-    fontSize: 10,
-    color: colors.gray,
-    textAlign: 'center',
-  },
   saveButton: {
     paddingVertical: 14,
     borderRadius: 8,
@@ -453,6 +507,17 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: colors.white,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: colors.lightGray,
+  },
+  cancelButtonText: {
+    color: colors.text,
+    fontSize: 14,
     fontWeight: '600',
   },
   listTitle: {
@@ -510,6 +575,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     marginBottom: 3,
+  },
+  editButton: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.teal,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  editButtonText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   emptyState: {
     alignItems: 'center',

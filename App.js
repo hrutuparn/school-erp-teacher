@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import TeacherLoginScreen from './src/screens/TeacherLoginScreen';
-import AddStudentScreen from './src/screens/AddStudentScreen';
+import StudentScreen from './src/screens/StudentScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
+import ChatScreen from './src/screens/ChatScreen';
 import { supabase } from './src/services/supabase';
 import colors from './src/components/colors';
 
 // Teacher Dashboard with navigation
-function TeacherDashboard({ onLogout, onNavigate }) {
+function TeacherDashboard({ onLogout, onNavigate, teacherClass }) {
   return (
     <SafeAreaView style={styles.container}>
       <ExpoStatusBar style="dark" />
@@ -35,14 +36,21 @@ function TeacherDashboard({ onLogout, onNavigate }) {
             <Text style={styles.actionSubtext}>Add or view students</Text>
           </TouchableOpacity>
           <TouchableOpacity 
- 		style={[styles.actionCard, { backgroundColor: colors.orange }]}
-  		onPress={() => onNavigate('attendance')}
-		>
-  		<Text style={styles.actionEmoji}>✅</Text>
-  		<Text style={styles.actionText}>Take Attendance</Text>
-  		<Text style={styles.actionSubtext}>Mark present/absent</Text>
-	</TouchableOpacity>
-          
+            style={[styles.actionCard, { backgroundColor: colors.orange }]}
+            onPress={() => onNavigate('attendance')}
+          >
+            <Text style={styles.actionEmoji}>✅</Text>
+            <Text style={styles.actionText}>Take Attendance</Text>
+            <Text style={styles.actionSubtext}>Mark present/absent</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionCard, { backgroundColor: colors.purple }]}
+            onPress={() => onNavigate('chat')}
+          >
+            <Text style={styles.actionEmoji}>💬</Text>
+            <Text style={styles.actionText}>Chat with Parents</Text>
+            <Text style={styles.actionSubtext}>Send messages</Text>
+          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.actionCard, { backgroundColor: colors.green }]}
             onPress={() => Alert.alert('Coming Soon', 'Homework feature coming soon!')}
@@ -60,16 +68,61 @@ function TeacherDashboard({ onLogout, onNavigate }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('dashboard');
+  const [teacherClass, setTeacherClass] = useState('');
+  const [teacherId, setTeacherId] = useState(null);
+
+  // Function to fetch teacher data after login
+  const fetchTeacherData = async (email) => {
+    try {
+      // Get teacher record using email
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (teacherError || !teacherData) {
+        console.log('Teacher not found for email:', email);
+        return;
+      }
+
+      setTeacherId(teacherData.id);
+
+      // Get the teacher's assigned class from class_teachers
+      const { data: classData, error: classError } = await supabase
+        .from('class_teachers')
+        .select('class_name')
+        .eq('teacher_id', teacherData.id)
+        .single();
+
+      if (classData) {
+        setTeacherClass(classData.class_name);
+      } else {
+        console.log('No class assigned to this teacher');
+      }
+    } catch (error) {
+      console.log('Error fetching teacher data:', error.message);
+    }
+  };
 
   useEffect(() => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
+      if (session) {
+        fetchTeacherData(session.user.email);
+      }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
+      if (session) {
+        fetchTeacherData(session.user.email);
+      } else {
+        setTeacherClass('');
+        setTeacherId(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -80,16 +133,21 @@ export default function App() {
   }
 
   // Show different screens based on navigation
-  switch(currentScreen) {
+  switch (currentScreen) {
     case 'students':
-      return <AddStudentScreen onBack={() => setCurrentScreen('dashboard')} />;
-    case 'attendance':    
+      return <StudentScreen onBack={() => setCurrentScreen('dashboard')} classFilter={teacherClass} />;
+    case 'attendance':
       return <AttendanceScreen onBack={() => setCurrentScreen('dashboard')} />;
+    case 'chat':
+      return <ChatScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
     default:
-      return <TeacherDashboard 
-        onLogout={() => setIsAuthenticated(false)} 
-        onNavigate={setCurrentScreen}
-      />;
+      return (
+        <TeacherDashboard
+          onLogout={() => setIsAuthenticated(false)}
+          onNavigate={setCurrentScreen}
+          teacherClass={teacherClass}
+        />
+      );
   }
 }
 
