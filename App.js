@@ -1,66 +1,153 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import TeacherLoginScreen from './src/screens/TeacherLoginScreen';
 import StudentScreen from './src/screens/StudentScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
 import ChatScreen from './src/screens/ChatScreen';
+import MarksScreen from './src/screens/MarksScreen';
+import HomeworkScreen from './src/screens/HomeworkScreen';
+import MealScreen from './src/screens/MealScreen';
+import SyllabusScreen from './src/screens/SyllabusScreen';
+import PrincipalChatScreen from './src/screens/PrincipalChatScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import AttendanceHistoryScreen from './src/screens/AttendanceHistoryScreen';
 import { supabase } from './src/services/supabase';
 import colors from './src/components/colors';
 
-// Teacher Dashboard with navigation
-function TeacherDashboard({ onLogout, onNavigate, teacherClass }) {
+// Teacher Dashboard with navigation grid
+function TeacherDashboard({ onLogout, onNavigate, teacherClass, teacherName }) {
+  const displayClass = teacherClass || 'Not Assigned';
+  const displayName = teacherName || 'Educator';
+
   return (
     <SafeAreaView style={styles.container}>
       <ExpoStatusBar style="dark" />
       <View style={styles.dashboardHeader}>
         <View style={styles.headerRow}>
-          <Text style={styles.dashboardTitle}>Teacher Dashboard</Text>
+          <View>
+            <Text style={styles.dashboardTitle}>Greenfield ERP</Text>
+            <Text style={styles.dashboardSubtitle}>Teacher Workspace 👩‍🏫</Text>
+          </View>
           <TouchableOpacity onPress={onLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>🚪</Text>
           </TouchableOpacity>
         </View>
       </View>
       
-      <View style={styles.dashboardContent}>
-        <Text style={styles.welcomeText}>Welcome, Teacher! 👩‍🏫</Text>
-        <Text style={styles.subText}>What would you like to do today?</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.welcomeBanner}>
+          <Text style={styles.welcomeText}>Hello, {displayName}!</Text>
+          <Text style={styles.subText}>Assigned Class Room: <Text style={styles.classBadge}>{displayClass}</Text></Text>
+        </View>
         
-        <View style={styles.quickActions}>
+        <Text style={styles.sectionTitle}>Quick Management Dashboard</Text>
+        
+        <View style={styles.quickActionsGrid}>
+          {/* Row 1 */}
           <TouchableOpacity 
-            style={[styles.actionCard, { backgroundColor: colors.teal }]}
+            style={[styles.gridCard, { borderLeftColor: colors.teal }]}
             onPress={() => onNavigate('students')}
           >
-            <Text style={styles.actionEmoji}>👥</Text>
-            <Text style={styles.actionText}>Manage Students</Text>
-            <Text style={styles.actionSubtext}>Add or view students</Text>
+            <Text style={styles.cardEmoji}>👥</Text>
+            <Text style={styles.cardTitle}>My Students</Text>
+            <Text style={styles.cardDesc}>View class list & roll</Text>
           </TouchableOpacity>
+
           <TouchableOpacity 
-            style={[styles.actionCard, { backgroundColor: colors.orange }]}
+            style={[styles.gridCard, { borderLeftColor: colors.orange }]}
             onPress={() => onNavigate('attendance')}
           >
-            <Text style={styles.actionEmoji}>✅</Text>
-            <Text style={styles.actionText}>Take Attendance</Text>
-            <Text style={styles.actionSubtext}>Mark present/absent</Text>
+            <Text style={styles.cardEmoji}>✅</Text>
+            <Text style={styles.cardTitle}>Take Attendance</Text>
+            <Text style={styles.cardDesc}>Daily roll call & SMS</Text>
           </TouchableOpacity>
+
+          {/* Row 2 */}
           <TouchableOpacity 
-            style={[styles.actionCard, { backgroundColor: colors.purple }]}
+            style={[styles.gridCard, { borderLeftColor: colors.orange }]}
+            onPress={() => onNavigate('attendanceHistory')}
+          >
+            <Text style={styles.cardEmoji}>📅</Text>
+            <Text style={styles.cardTitle}>Attendance Logs</Text>
+            <Text style={styles.cardDesc}>View class past records</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.gridCard, { borderLeftColor: colors.teal }]}
+            onPress={() => onNavigate('marks')}
+          >
+            <Text style={styles.cardEmoji}>📊</Text>
+            <Text style={styles.cardTitle}>Test Marks</Text>
+            <Text style={styles.cardDesc}>Log exams & grades</Text>
+          </TouchableOpacity>
+
+          {/* Row 3 */}
+          <TouchableOpacity 
+            style={[styles.gridCard, { borderLeftColor: colors.green }]}
+            onPress={() => onNavigate('homework')}
+          >
+            <Text style={styles.cardEmoji}>📝</Text>
+            <Text style={styles.cardTitle}>Homework</Text>
+            <Text style={styles.cardDesc}>Assign files & voice</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.gridCard, { borderLeftColor: colors.orange }]}
+            onPress={() => onNavigate('meals')}
+          >
+            <Text style={styles.cardEmoji}>🍱</Text>
+            <Text style={styles.cardTitle}>Mid-Day Meal</Text>
+            <Text style={styles.cardDesc}>Track today's allergens</Text>
+          </TouchableOpacity>
+
+          {/* Row 4 */}
+          <TouchableOpacity 
+            style={[styles.gridCard, { borderLeftColor: colors.purple }]}
             onPress={() => onNavigate('chat')}
           >
-            <Text style={styles.actionEmoji}>💬</Text>
-            <Text style={styles.actionText}>Chat with Parents</Text>
-            <Text style={styles.actionSubtext}>Send messages</Text>
+            <Text style={styles.cardEmoji}>💬</Text>
+            <Text style={styles.cardTitle}>Parent Chats</Text>
+            <Text style={styles.cardDesc}>Direct messaging feed</Text>
           </TouchableOpacity>
+
           <TouchableOpacity 
-            style={[styles.actionCard, { backgroundColor: colors.green }]}
-            onPress={() => Alert.alert('Coming Soon', 'Homework feature coming soon!')}
+            style={[styles.gridCard, { borderLeftColor: colors.purple }]}
+            onPress={() => onNavigate('principalChat')}
           >
-            <Text style={styles.actionEmoji}>📝</Text>
-            <Text style={styles.actionText}>Homework</Text>
-            <Text style={styles.actionSubtext}>Assign homework</Text>
+            <Text style={styles.cardEmoji}>🏢</Text>
+            <Text style={styles.cardTitle}>Principal Chat</Text>
+            <Text style={styles.cardDesc}>Direct office connection</Text>
+          </TouchableOpacity>
+
+          {/* Row 5 */}
+          <TouchableOpacity 
+            style={[styles.gridCard, { borderLeftColor: colors.teal }]}
+            onPress={() => onNavigate('profile')}
+          >
+            <Text style={styles.cardEmoji}>👤</Text>
+            <Text style={styles.cardTitle}>My Profile</Text>
+            <Text style={styles.cardDesc}>Edit info, slips & leaves</Text>
+          </TouchableOpacity>
+
+          <View style={{ width: '48%' }} />
+
+          {/* Row 6 (Full Width) */}
+          <TouchableOpacity 
+            style={[styles.gridCardFull, { borderLeftColor: colors.purple, marginTop: 10 }]}
+            onPress={() => onNavigate('syllabus')}
+          >
+            <View style={styles.fullCardLeft}>
+              <Text style={styles.cardEmojiLarge}>📚</Text>
+              <View style={styles.fullCardText}>
+                <Text style={styles.cardTitle}>Syllabus & YouTube Helper</Text>
+                <Text style={styles.cardDesc}>Log progress and share study links with parents</Text>
+              </View>
+            </View>
+            <Text style={styles.arrowIcon}>→</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -70,6 +157,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [teacherClass, setTeacherClass] = useState('');
   const [teacherId, setTeacherId] = useState(null);
+  const [teacherName, setTeacherName] = useState('');
 
   // Function to fetch teacher data after login
   const fetchTeacherData = async (email) => {
@@ -77,16 +165,17 @@ export default function App() {
       // Get teacher record using email
       const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
-        .select('id')
+        .select('id, name')
         .eq('email', email)
         .single();
 
       if (teacherError || !teacherData) {
-        console.log('Teacher not found for email:', email);
+        console.log('Teacher profile not found for email:', email);
         return;
       }
 
       setTeacherId(teacherData.id);
+      setTeacherName(teacherData.name);
 
       // Get the teacher's assigned class from class_teachers
       const { data: classData, error: classError } = await supabase
@@ -98,7 +187,18 @@ export default function App() {
       if (classData) {
         setTeacherClass(classData.class_name);
       } else {
-        console.log('No class assigned to this teacher');
+        console.log('No class assigned to this teacher in class_teachers');
+        // Fallback search in assignments
+        const { data: assignData } = await supabase
+          .from('teacher_assignments')
+          .select('class_name')
+          .eq('teacher_id', teacherData.id)
+          .limit(1);
+        if (assignData && assignData.length > 0) {
+          setTeacherClass(assignData[0].class_name);
+        } else {
+          setTeacherClass('10A'); // standard default
+        }
       }
     } catch (error) {
       console.log('Error fetching teacher data:', error.message);
@@ -122,6 +222,7 @@ export default function App() {
       } else {
         setTeacherClass('');
         setTeacherId(null);
+        setTeacherName('');
       }
     });
 
@@ -137,15 +238,56 @@ export default function App() {
     case 'students':
       return <StudentScreen onBack={() => setCurrentScreen('dashboard')} classFilter={teacherClass} />;
     case 'attendance':
-      return <AttendanceScreen onBack={() => setCurrentScreen('dashboard')} />;
+      return (
+        <AttendanceScreen 
+          onBack={() => setCurrentScreen('dashboard')} 
+          className={teacherClass} 
+          teacherId={teacherId} 
+          teacherName={teacherName} 
+        />
+      );
     case 'chat':
-      return <ChatScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
+      return (
+        <ChatScreen 
+          onBack={() => setCurrentScreen('dashboard')} 
+          teacherId={teacherId} 
+          teacherClass={teacherClass} 
+        />
+      );
+    case 'marks':
+      return <MarksScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
+    case 'homework':
+      return <HomeworkScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
+    case 'meals':
+      return (
+        <MealScreen 
+          onBack={() => setCurrentScreen('dashboard')} 
+          className={teacherClass} 
+          teacherId={teacherId} 
+        />
+      );
+    case 'syllabus':
+      return (
+        <SyllabusScreen 
+          onBack={() => setCurrentScreen('dashboard')} 
+          className={teacherClass} 
+          teacherId={teacherId} 
+          teacherName={teacherName} 
+        />
+      );
+    case 'principalChat':
+      return <PrincipalChatScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
+    case 'profile':
+      return <ProfileScreen onBack={() => setCurrentScreen('dashboard')} teacherId={teacherId} />;
+    case 'attendanceHistory':
+      return <AttendanceHistoryScreen onBack={() => setCurrentScreen('dashboard')} className={teacherClass} />;
     default:
       return (
         <TeacherDashboard
           onLogout={() => setIsAuthenticated(false)}
           onNavigate={setCurrentScreen}
           teacherClass={teacherClass}
+          teacherName={teacherName}
         />
       );
   }
@@ -158,8 +300,9 @@ const styles = StyleSheet.create({
   },
   dashboardHeader: {
     backgroundColor: colors.white,
-    padding: 20,
-    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingTop: 55,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: colors.lightGray,
   },
@@ -169,9 +312,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dashboardTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.text,
+  },
+  dashboardSubtitle: {
+    fontSize: 13,
+    color: colors.gray,
+    marginTop: 2,
   },
   logoutButton: {
     width: 40,
@@ -184,52 +332,112 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 20,
   },
-  dashboardContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  scrollContent: {
+    padding: 15,
+  },
+  welcomeBanner: {
+    backgroundColor: colors.white,
     padding: 20,
-  },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 10,
-  },
-  subText: {
-    fontSize: 16,
-    color: colors.gray,
-    textAlign: 'center',
+    borderRadius: 16,
     marginBottom: 20,
-  },
-  quickActions: {
-    width: '100%',
-    marginTop: 20,
-  },
-  actionCard: {
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 15,
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.lightGray,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  actionEmoji: {
-    fontSize: 40,
+  welcomeText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  subText: {
+    fontSize: 14,
+    color: colors.gray,
+  },
+  classBadge: {
+    color: colors.teal,
+    fontWeight: 'bold',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  gridCard: {
+    width: '48%',
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 15,
+    marginBottom: 15,
+    borderLeftWidth: 5,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  cardEmoji: {
+    fontSize: 28,
     marginBottom: 10,
   },
-  actionText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 5,
+  cardEmojiLarge: {
+    fontSize: 32,
+    marginRight: 15,
   },
-  actionSubtext: {
-    fontSize: 12,
-    color: colors.white,
-    opacity: 0.9,
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 11,
+    color: colors.gray,
+    lineHeight: 14,
+  },
+  gridCardFull: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 15,
+    marginBottom: 15,
+    borderLeftWidth: 5,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  fullCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  fullCardText: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  arrowIcon: {
+    fontSize: 18,
+    color: colors.gray,
+    fontWeight: 'bold',
   },
 });
