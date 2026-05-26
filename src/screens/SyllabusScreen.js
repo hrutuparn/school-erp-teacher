@@ -141,51 +141,34 @@ export default function SyllabusScreen({ onBack, className = "10A", teacherId, t
 
       // 2. Broadcast to parents if toggle is active
       if (broadcastToParents) {
-        // Fetch all students in class
+        // Fetch all students in class with parent_phone
         const { data: studentsList, error: studError } = await supabase
           .from('students')
-          .select('id, first_name')
+          .select('parent_phone')
           .eq('class', selectedClass);
 
         if (!studError && studentsList && studentsList.length > 0) {
-          const studentIds = studentsList.map(s => s.id);
+          const parentPhones = [...new Set(studentsList.map(s => s.parent_phone).filter(Boolean))];
           
-          // Get parents links
-          const { data: parentLinks } = await supabase
-            .from('parent_students')
-            .select('parent_id, student_id')
-            .in('student_id', studentIds);
+          if (parentPhones.length > 0) {
+            const exerciseInfo = exerciseText ? ` (${exerciseText})` : '';
+            const broadcastMessage = `📢 Today's Class Update:\nWe completed ${chapterTitle}${exerciseInfo} in Class ${selectedClass} ${selectedSubject}.\n\nRevision video link for students: ${youtubeUrl || 'Review textbook chapter'}\n\nWarm regards, ${teacherName || 'Class Teacher'}.`;
 
-          if (parentLinks && parentLinks.length > 0) {
-            const parentIds = [...new Set(parentLinks.map(l => l.parent_id))];
-            
-            // Get parent user profiles
-            const { data: parentUsers } = await supabase
-              .from('parents')
-              .select('user_id, name')
-              .in('id', parentIds);
-
-            if (parentUsers && parentUsers.length > 0) {
-              const exerciseInfo = exerciseText ? ` (${exerciseText})` : '';
-              const broadcastMessage = `📢 Today's Class Update:\nWe completed ${chapterTitle}${exerciseInfo} in Class ${selectedClass} ${selectedSubject}.\n\nRevision video link for students: ${youtubeUrl || 'Review textbook chapter'}\n\nWarm regards, ${teacherName || 'Class Teacher'}.`;
-
-              for (const parent of parentUsers) {
-                if (!parent.user_id) continue;
-                await supabase
-                  .from('chat_messages')
-                  .insert([
-                    {
-                      sender_id: senderUid,
-                      sender_type: 'teacher',
-                      receiver_id: parent.user_id,
-                      message: broadcastMessage,
-                      command: '/chat',
-                      is_read: false,
-                      created_at: new Date()
-                    }
-                  ]);
-                broadcastCount++;
-              }
+            for (const phone of parentPhones) {
+              await supabase
+                .from('chat_messages')
+                .insert([
+                  {
+                    sender_id: senderUid,
+                    sender_type: 'teacher',
+                    receiver_id: phone,
+                    message: broadcastMessage,
+                    command: '/chat',
+                    is_read: false,
+                    created_at: new Date()
+                  }
+                ]);
+              broadcastCount++;
             }
           }
         }

@@ -114,43 +114,25 @@ export default function AttendanceScreen({ onBack, className = "10A", teacherId,
 
       for (const student of absentStudents) {
         try {
-          // Find parent links
-          const { data: parentLinks, error: linkErr } = await supabase
-            .from('parent_students')
-            .select('parent_id')
-            .eq('student_id', student.id);
-
-          if (linkErr || !parentLinks || parentLinks.length === 0) continue;
-
-          // Find parent user accounts
-          const parentIds = parentLinks.map(l => l.parent_id);
-          const { data: parentUsers, error: userErr } = await supabase
-            .from('parents')
-            .select('user_id, name')
-            .in('id', parentIds);
-
-          if (userErr || !parentUsers || parentUsers.length === 0) continue;
+          if (!student.parent_phone) continue;
 
           const caringMessage = `Dear Parent, we missed ${student.first_name} in school today. We hope they are doing well! Please let us know if there is anything we can help with. Warm regards, ${teacherName || 'Class Teacher'} & Greenfield School.`;
 
-          for (const parent of parentUsers) {
-            if (!parent.user_id) continue;
-            // Write directly to chat_messages table to trigger parent app notification & chat history
-            await supabase
-              .from('chat_messages')
-              .insert([
-                {
-                  sender_id: senderUid,
-                  sender_type: 'teacher',
-                  receiver_id: parent.user_id,
-                  message: caringMessage,
-                  command: '/chat',
-                  is_read: false,
-                  created_at: new Date()
-                }
-              ]);
-            smsCount++;
-          }
+          // Write directly to chat_messages table to trigger parent app notification & chat history
+          await supabase
+            .from('chat_messages')
+            .insert([
+              {
+                sender_id: senderUid,
+                sender_type: 'teacher',
+                receiver_id: student.parent_phone,
+                message: caringMessage,
+                command: '/chat',
+                is_read: false,
+                created_at: new Date()
+              }
+            ]);
+          smsCount++;
         } catch (e) {
           console.log(`Failed sending SMS for student ${student.first_name}:`, e.message);
         }

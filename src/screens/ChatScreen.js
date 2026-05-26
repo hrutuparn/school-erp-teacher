@@ -39,38 +39,22 @@ export default function ChatScreen({ onBack, teacherId, teacherClass }) {
       // Get all students in the teacher's assigned class
       const { data: studentsData, error: studError } = await supabase
         .from('students')
-        .select('id')
+        .select('parent_name, parent_phone, student_name_full')
         .eq('class', activeClass);
 
       if (studError) throw studError;
 
-      const studentIds = (studentsData || []).map(s => s.id);
-      if (studentIds.length === 0) {
-        setParents([]);
-        setClassParents([]);
-        setLoading(false);
-        return;
-      }
-
-      // Query parent links
-      const { data: parentLinks, error: linkError } = await supabase
-        .from('parent_students')
-        .select(`
-          parent_id,
-          parents:parent_id ( id, name, phone )
-        `)
-        .in('student_id', studentIds);
-
-      if (linkError) throw linkError;
-
-      // Deduplicate parent profiles
+      // Deduplicate parent profiles by phone
       const uniqueParents = [];
       const seen = new Set();
-      for (const item of (parentLinks || [])) {
-        const pProfile = item.parents;
-        if (pProfile && !seen.has(pProfile.id)) {
-          seen.add(pProfile.id);
-          uniqueParents.push(pProfile);
+      for (const student of (studentsData || [])) {
+        if (student.parent_phone && !seen.has(student.parent_phone)) {
+          seen.add(student.parent_phone);
+          uniqueParents.push({
+            id: student.parent_phone, // Use phone number as the ID!
+            name: student.parent_name || `Parent of ${student.student_name_full || 'Student'}`,
+            phone: student.parent_phone
+          });
         }
       }
 
@@ -93,16 +77,29 @@ export default function ChatScreen({ onBack, teacherId, teacherClass }) {
     }
 
     try {
-      // Search all parents in school by name or phone
+      // Search students in the system by parent_name or parent_phone
       const { data, error } = await supabase
-        .from('parents')
-        .select('id, name, phone')
-        .or(`name.ilike.%${text}%,phone.like.%${text}%`)
-        .limit(20);
+        .from('students')
+        .select('parent_name, parent_phone, student_name_full')
+        .or(`parent_name.ilike.%${text}%,parent_phone.like.%${text}%`);
 
-      if (!error && data) {
-        setParents(data);
+      if (error) throw error;
+
+      // Deduplicate parent profiles by phone
+      const uniqueParents = [];
+      const seen = new Set();
+      for (const student of (data || [])) {
+        if (student.parent_phone && !seen.has(student.parent_phone)) {
+          seen.add(student.parent_phone);
+          uniqueParents.push({
+            id: student.parent_phone,
+            name: student.parent_name || `Parent of ${student.student_name_full || 'Student'}`,
+            phone: student.parent_phone
+          });
+        }
       }
+
+      setParents(uniqueParents);
     } catch (e) {
       console.log('Search failed:', e.message);
     }
